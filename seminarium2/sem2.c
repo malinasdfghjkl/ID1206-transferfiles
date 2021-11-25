@@ -26,14 +26,12 @@ struct head * prev ; // 8 bytespointer
 };
 
 //  -   -   -   -   -   -   -   -   -   --  -       --  -  before and after
-struct head * after( struct head *block) {
-return (struct head*) (char* x= (char*)block
-                        x+=bsize+head.size()            //IDK
-) ;
+struct head *after( struct head *block) {
+return (struct head*) ((char*)block->block+size+HEAD); //take the current pointer, cast it to a character pointer then add the size of the block plus the size of a header.
 }
 
-struct head * before( struct head * block) {
-return (struct head * ) (.....) ;
+struct head *before( struct head * block) {
+return (struct head * ) ((char*)block->block+bsize-HEAD); //same as before but now bsize bc before size and -HEAD bc previous block is before
 }
 
 //  -   -   -   -   -   -   -   -   -   --  -       --  -  split a block
@@ -41,12 +39,12 @@ struct head * split( struct head * block , int size ) {
 int rsize= . . . . .
 block−>size= . . .
 struct head * splt= . . .
-s pl t −>b size= . . .
-s pl t −>b free= . . .
-s pl t −>size= . . .
-s pl t −>free= . . .
+splt −>b size= . . .
+splt −>b free= . . .
+splt −>size= . . .
+splt −>free= . . .
 struct head * aft= . .
-a f t−>b size= . . .
+aft−>b size= . . .
 return splt;
 }
 
