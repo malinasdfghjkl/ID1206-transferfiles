@@ -1,7 +1,15 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <errno.h>
+#include <math.h>
+
 #define TRUE 1
 #define FALSE 0
 
-#define HEAD (sizeof(struct head))
+#define HEAD(sizeof(struct head))
 
 #define MIN(size) (((size)>(8))?(size):(8))
 
@@ -21,8 +29,8 @@ uint16_t bfree; // 2 bytes, the status of block before
 uint16_t bsize; // 2 bytes, the size of block before
 uint16_t free; // 2 bytes, the status of the block
 uint16_t size; // 2 bytes, the size (max 2^16 i.e. 64 Ki byte )
-struct head * next ; // 8 bytespointer
-struct head * prev ; // 8 bytespointer
+struct head *next ; // 8 bytespointer
+struct head *prev ; // 8 bytespointer
 };
 
 //  -   -   -   -   -   -   -   -   -   --  -       --  -  before and after
