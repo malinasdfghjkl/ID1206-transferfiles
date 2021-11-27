@@ -209,6 +209,28 @@ void dfree(void *memory)
     return;
 }
 
+//  -   -   -   -   -   -   -   -   -   -   -   -   -   Merge
+struct head *merge ( struct head *block) {
+    struct head *aft= after(block);
+    if(block->bfree) {
+        struct head *bblock=before(block);
+        detach(bblock);                      /* unlink the block before*/
+        
+        bblock->size= HEAD +(bblock->size) +(block->size);                      /* calculate and set the total size of the merged blocks*/
+        aft->bsize= (bblock->size);                                                /* update the block after the merged blocks*/
+        block=bblock;                                                            /* continue with the merged block */
+    }
+
+    if(aft->free){
+    detach(aft);                                    /* unlink the block*/
+    block->size= HEAD +(aft->size) +(block->size);    /* calculate and set the total size of merged blocks */
+    aft=after(block);/* update the block after the merged block*/
+    aft->bsize=(block->size);
+    }
+
+    return block;
+}
+
 
 // sanity
 
