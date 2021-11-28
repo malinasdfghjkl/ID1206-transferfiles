@@ -67,17 +67,17 @@ struct head *arena = NULL;
 
 struct head *new()
 {
-      printf("in new arena: %d \n", arena);
+      //printf("in new arena: %d \n", arena);
     if(arena != NULL){
-        printf("one arena already allocated \n");                        //seems to get stuck here
+        printf("one arena already allocated \n");
         return NULL;
     }
-  printf("checked for arenas");
+  //printf("checked for arenas");
     // using mmap, but could have used sbrk
     struct head *new = mmap(NULL, ARENA,
                             PROT_READ | PROT_WRITE,
                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  printf("made new struct");
+ // printf("made new struct");
 
     if (new == MAP_FAILED)
     {
@@ -85,7 +85,7 @@ struct head *new()
         return NULL;
     }
 
-  printf("checked if map failed");
+  //printf("checked if map failed");
     /* make room for head and dummy */
     unsigned int size = ARENA -(2*HEAD);
     new->bfree = FALSE;                 //so we cant merge it w something else
@@ -93,14 +93,14 @@ struct head *new()
     new->free = TRUE;                   //allows for the block to be allocated, but hasnt been yet
     new->size = size;                   //size= the new given
     struct head *sentinel = after(new); //sets where this block ends
-  printf("set new inso and started sentinel");
+  //printf("set new inso and started sentinel");
     /* only touch the status fields */
     sentinel->bfree = (new->free); //status of new as new is "before"
     sentinel->bsize = (new->size); //size of new as new is "before"
     sentinel->free = FALSE;        //bc no mergeing allowed, has to bee kept so we dont lose where the block ends
     sentinel->size = 0;            //set to 0 bc not meant to contain anything, only to denote end
                                    /* this is the only arena we have */
-      printf("finished sentinel setup");
+      //printf("finished sentinel setup");
     arena = (struct head*)new;    //arena is where we may allocate memory => new
    
     return new;
@@ -235,16 +235,16 @@ struct head *merge ( struct head *block) {
 // sanity
 
 void sanity(){
-    printf("sanity pre stucts: \n");
+    //printf("sanity pre stucts: \n");
     struct head *a = flist;
 
-    printf("post a %ud \n", &a);
+    //printf("post a %ud \n", &a);
 
     struct head *b = a->prev;                           //stuck here
 
-    printf("post b %d \n", b);
+    //printf("post b %d \n", b);
 
-printf("sanity: \n");
+//printf("sanity: \n");
 
     while ( (a->size)!=0 && (a->next)!= NULL)
     {
@@ -276,7 +276,7 @@ printf("sanity: \n");
         a=a->next;
     }
 
-printf("Done \n");
+//printf("Done \n");
 }
 
 //segmentation fix
