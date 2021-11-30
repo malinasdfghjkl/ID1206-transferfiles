@@ -1,0 +1,414 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <sys/time.h>
+#include <errno.h>
+#include <math.h>
+#include "dlmall.h"
+
+#define TRUE 1
+#define FALSE 0
+
+#define HEAD sizeof(struct head)
+
+#define MIN(size) (((size) > (8)) ? (size) : (8))
+
+#define LIMIT(size) (MIN(0) + HEAD + size)
+
+#define MAGIC(memory) ((struct head *)memory - 1)
+#define HIDE(block) (void *)((struct head *)block + 1)
+
+#define ALIGN 8
+
+#define ARENA (64 * 1024)
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -  operations on a block
+struct head
+{
+    uint16_t bfree;    // 2 bytes, the status of block before
+    uint16_t bsize;    // 2 bytes, the size of block before
+    uint16_t free;     // 2 bytes, the status of the block
+    uint16_t size;     // 2 bytes, the size (max 2^16 i.e. 64 Ki byte )
+    struct head *next; // 8 bytespointer
+    struct head *prev; // 8 bytespointer
+};
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -  before and after
+struct head *after(struct head *block)
+{
+    return (struct head *)((char *)block + block->size + HEAD); //take the current pointer, cast it to a character pointer then add the size of the block plus the size of a header.
+}
+
+struct head *before(struct head *block)
+{
+    return (struct head *)((char *)block + block->bsize - HEAD); //same as before but now bsize bc before size and -HEAD bc previous block is before
+}
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -  split a block
+struct head *split(struct head *block, int size)
+{
+    //Calculate the remaining size
+    int rsize = block->size - size - HEAD;
+    block->size = rsize;
+
+    struct head *splt = after(block);
+    splt->bsize = block->size;
+    splt->bfree = block->free;
+    splt->size = size;
+    splt->free = FALSE;
+    struct head *aft = after(splt);
+    aft->bsize = splt->size;
+    return splt;
+}
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -   a new block
+struct head *arena = NULL;
+
+struct head *new ()
+{
+    if (arena != NULL)
+    {
+        printf("one arena already allocated \n");
+        return NULL;
+    }
+
+    // using mmap, but could have used sbrk
+    struct head *new = mmap(NULL, ARENA,
+                            PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (new == MAP_FAILED)
+    {
+        printf("mmap failed: error %d\n", errno);
+        return NULL;
+    }
+
+    /* make room for head and dummy */
+    unsigned int size = ARENA -2 * HEAD;
+    new->bfree = FALSE;
+    new->bsize = 0;
+    new->free = TRUE;
+    new->size = size;
+
+    struct head *sentinel = after(new);
+    /* only touch the status fields */
+    sentinel->bfree = new->free;
+    sentinel->bsize = new->size;
+    sentinel->free = FALSE;
+    sentinel->size = 0;
+
+    /* this is the only arena we have */
+    arena = (struct head *)new;
+    return new;
+}
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -    free list
+struct head *flist;
+
+void detach(struct head *block)
+{
+    if (block->next != NULL)
+    {
+        block->next->prev = block->prev;
+    }
+    if (block->prev != NULL)
+    {
+        block->prev->next = block->next;
+    }
+    else
+    {
+        flist = block->next;
+    }
+}
+
+void insert(struct head *block)
+{
+    block->next = flist;
+    block->prev = NULL;
+    if (flist != NULL)
+    {
+        flist->prev = block;
+    }
+    flist = block;
+}
+
+
+
+//  -   -   -   -   -   -   -   -   -   --  -       --  -     -   -   -   -   -   -   -   -   -   --  -       --  -    Allocate & free
+
+int adjust(size_t request) //Determine a suitable size that is an even multiple of ALIGN and not smaller than the minimum size.
+{
+    int min = MIN(request);
+
+    if (min % ALIGN == 0)
+    {
+        return request;
+    }
+    else
+    {
+        return min + ALIGN - min % ALIGN;
+    }
+}
+
+//Go through freelist and find the first block which is large enough to meet our request. If there is no freelist create one.
+//If the size of the block found is large enough that it can be split into two, do so.
+//Mark the block as taken, and update the block after the taken block
+//Return a pointer to the start of the block.
+struct head *find(size_t size)
+{
+    struct head *traverse = flist;
+    struct head *aft;
+
+    while (traverse != NULL)
+    {
+        if (traverse->size >= size)
+        {
+            detach(traverse);
+
+            if (traverse->size >= LIMIT(size))
+            {
+                struct head *splt = split(traverse, size);
+                insert(traverse);
+
+                aft = after(splt);
+                aft->bfree = FALSE;
+                aft->free = FALSE;
+
+                return splt;
+            }
+            else
+            {
+                traverse->free = FALSE;
+                aft = after(traverse);
+                aft->bfree = FALSE;
+                return traverse;
+            }
+        }
+        else
+        {
+            traverse = traverse->next;
+        }
+    }
+
+    return NULL;
+}
+
+//merge
+struct head *merge(struct head *block)
+{
+    struct head *aft = after(block);
+    if (block->bfree)
+    {
+        struct head *bblock = before(block);
+        detach(bblock); /* unlink the block before*/
+
+        bblock->size = HEAD + (bblock->size) + (block->size); /* calculate and set the total size of the merged blocks*/
+        aft->bsize = (bblock->size);                          /* update the block after the merged blocks*/
+        block = bblock;                                       /* continue with the merged block */
+    }
+
+    if (aft->free)
+    {
+        detach(aft);                                      /* unlink the block*/
+        block->size = HEAD + (aft->size) + (block->size); /* calculate and set the total size of merged blocks */
+        aft = after(block);                               /* update the block after the merged block*/
+        aft->bsize = (block->size);
+    }
+
+    return block;
+}
+
+void *dalloc(size_t request)
+{
+    if (request <= 0)
+    {
+        return NULL;
+    }
+    int size = adjust(request);
+    struct head *taken = find(size);
+    if (taken == NULL)
+    {
+        return NULL;
+    }
+    else
+    {
+        return HIDE(taken);
+    }
+}
+
+void dfree(void *memory)
+{
+    if (memory != NULL)
+    {
+        struct head *block = (struct head *)MAGIC(memory);
+        block= merge(block);
+        /*struct head *aft = after(block);
+        block->free = TRUE;
+        aft->bfree = block->free;
+        insert(block);*/
+    }
+    return;
+}
+
+void sanity()
+{
+    struct head *sanityCheck = flist;
+    struct head *prevCheck = sanityCheck->prev;
+
+
+    while (sanityCheck->size != 0 && sanityCheck->next != NULL)
+    {
+        if (sanityCheck->free != TRUE)
+        {
+            printf("Block at index  in the list was found but was not free\n");
+            exit(1);
+        }
+
+        if (sanityCheck->size % ALIGN != 0)
+        {
+            printf("Block at index  in the list had a size which does not align\n" );
+            exit(1);
+        }
+
+        if (sanityCheck->size < MIN(sanityCheck->size))
+        {
+            printf("The size of the block at index in the list is smaller than the mininmum.\n");
+            exit(1);
+        }
+
+        if (sanityCheck->prev != prevCheck)
+        {
+            printf("Block at index in the list had a prev that didn't match with the previous block.\n");
+            exit(1);
+        }
+
+        prevCheck = sanityCheck;
+        sanityCheck = sanityCheck->next;
+    }
+
+    printf("No problems were found during the sanity check\n");
+}
+
+void traverse()
+{
+    struct head *before = arena;
+    struct head *aft = after(before);
+
+    while (aft->size != 0)
+    {
+        // printf("%u\n", aft->size);
+        if (aft->bsize != before->size)
+        {
+            printf("the size doesn't match!\n");
+            exit(1);
+        }
+
+        if (aft->bfree != before->free)
+        {
+            printf("the status of free doesn't match!\n");
+        }
+
+        before = aft;
+        aft = after(aft);
+    }
+    printf("No problems deteced.\n");
+}
+
+void init()
+{
+    struct head *first = new();
+    insert(first);
+}
+
+void block_sizes(int max, int *sizes)
+{
+    struct head *block = flist;
+    int i = 0;
+
+    while(i < max)
+    {
+        if(block != NULL)
+        {
+        sizes[i] = (int) block->size;
+        block = after(block);
+        }
+        else
+        {
+            sizes[i] = 0;
+        }
+        ++i;
+    }
+}
+
+void flist_size(unsigned int *size)
+{
+    *size = 0;
+    struct head *block = flist;
+    while(block != NULL)
+    {
+        *size += block->size;
+        block = block->next;
+    }
+}
+
+
+double cpumSecond() {
+   struct timeval tp;
+   gettimeofday(&tp,NULL);
+   return ((double)tp.tv_sec * 1000 + (double)tp.tv_usec * 1.e-3);
+}
+#define SEED 912
+void benchmark(int howMany, int requested)
+{
+    //printf("Hej\n");
+    struct head *arr[howMany];
+    srand(SEED);
+    int j = 0;
+    int flistSize = 0;
+    for(int reset = 0; reset < howMany; ++reset)
+    {
+        arr[reset] = NULL;
+    }
+    for(int i = 0; i < howMany; ++i)
+    {
+        int index = rand() % requested;
+        if((arr[index]) != NULL || j >= requested)
+        {
+            dfree(arr[index]);
+            arr[index] = NULL;
+            --j;
+        }  
+        else
+        {
+            arr[index] = dalloc(index * rand() % 100);
+            ++j;
+        }
+        flist_size(&flistSize);
+        //printf("%d\n", flistSize);
+    }
+
+}
+
+int main(int argc, char *argv[])
+{
+    init();
+    // if(*argc < 3)
+    // {
+    //     printf("Too few arguments!\n (Format is: <Blocks requested> <Blocks at a time>");
+    //     exit(1);
+    // }
+
+    int requested = 10000;
+    int howMany = 1000000;
+    printf("%d  %d\n", requested, howMany);
+    unsigned long long iStart, iElaps;
+    for(int i = 0; i < 100000; i += 20)
+    {
+        iStart = cpumSecond();
+        benchmark(howMany, requested);
+        iElaps = cpumSecond() - iStart;
+        printf("Time: %llu\n", iElaps);
+    }
+    return 0;
+}
