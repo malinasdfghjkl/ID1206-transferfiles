@@ -43,7 +43,7 @@ struct head *after(struct head *block)
 
 struct head *before(struct head *block)
 {
-    return (struct head *)((char *)block + block->bsize - HEAD); //same as before but now bsize bc before size and -HEAD bc previous block is before
+    return (struct head *)((char *)block - block->bsize - HEAD); //same as before but now bsize bc before size and -HEAD bc previous block is before
 }
 
 //  -   -   -   -   -   -   -   -   -   --  -       --  -  split a block
@@ -201,23 +201,67 @@ struct head *merge(struct head *block)
     if (block->bfree)
     {
         struct head *bblock = before(block);
-        detach(bblock); /* unlink the block before*/
+        detach(bblock); //unlink the block before
 
-        bblock->size = HEAD + (bblock->size) + (block->size); /* calculate and set the total size of the merged blocks*/
-        aft->bsize = (bblock->size);                          /* update the block after the merged blocks*/
-        block = bblock;                                       /* continue with the merged block */
+        bblock->size = HEAD + (bblock->size) + (block->size); // calculate and set the total size of the merged blocks
+        aft->bsize = (bblock->size);                          // update the block after the merged blocks
+        block = bblock;                                       // continue with the merged block 
     }
 
     if (aft->free)
     {
-        detach(aft);                                      /* unlink the block*/
-        block->size = HEAD + (aft->size) + (block->size); /* calculate and set the total size of merged blocks */
-        aft = after(block);                               /* update the block after the merged block*/
+        detach(aft);                                      //unlink the block
+        block->size = HEAD + (aft->size) + (block->size); //calculate and set the total size of merged blocks 
+        aft = after(block);                               //update the block after the merged block
         aft->bsize = (block->size);
     }
 
     return block;
 }
+/*
+struct head *merge(struct head *block){
+  struct head *aft = after(block);
+  if(block->bfree){
+    struct head *bef = before(block);
+    detach(bef);
+    bef->size = bef->size + block->size + HEAD;
+    aft->bsize = bef->size;
+    block = bef;
+  }
+
+  if(aft->free){
+    detach(aft);
+    block->size = block->size + aft->size + HEAD;
+    aft = after(block);
+    aft->bsize = block->size;
+  }
+
+  return block;
+}
+
+struct head *merge(struct head *block)
+{
+    struct head *aft = after(block);
+    if (block->bfree)
+    {
+        struct head *bef = before(block);
+        detach(bef);
+        bef->size = bef->size + block->size + HEAD;
+        aft->bsize = bef->size;
+        block = bef;
+    }
+
+    if (aft->free)
+    {
+        detach(aft);
+        block->size = block->size + aft->size + HEAD;
+        aft = after(block);
+        aft->bsize = block->size;
+    }
+
+    return block;
+}*/
+
 
 void *dalloc(size_t request)
 {
@@ -241,12 +285,16 @@ void dfree(void *memory)
 {
     if (memory != NULL)
     {
-        struct head *block = (struct head *)MAGIC(memory);
-        block= merge(block);
-        /*struct head *aft = after(block);
+        struct head *block = MAGIC(memory);
+        /*block = merge(block);
+        struct head *aft = after(block);
         block->free = TRUE;
-        aft->bfree = block->free;
+        aft->bfree = TRUE;
         insert(block);*/
+        struct head *aft = after(block);
+        block->free = TRUE;
+        aft->bfree = TRUE;
+        insert(block);
     }
     return;
 }
@@ -317,7 +365,7 @@ void traverse()
 
 void init()
 {
-    struct head *first = new();
+    struct head *first = new ();
     insert(first);
 }
 
@@ -341,6 +389,39 @@ void block_sizes(int max, int *sizes)
     }
 }
 
+/*void block_sizes(int max)
+{printf("pre sizes max");
+    int sizes[max];
+    struct head *block = flist;
+    int i = 0;
+
+    while (i < max)
+    {
+        if (block != NULL)
+        {
+            sizes[i] = (int)block->size;
+            block = after(block);
+            printf("%d\t", sizes[i]);
+        }
+        ++i;
+    }
+    printf("\n");
+}*/
+
+/*int flist_size(unsigned int *size)
+{
+    int count = 0;
+    *size = 0;
+    struct head *block = flist;
+    while (block != NULL)
+    {
+        ++count;
+        *size += block->size;
+        block = block->next;
+    }
+    return count;
+}
+
 void flist_size(unsigned int *size)
 {
     *size = 0;
@@ -350,65 +431,33 @@ void flist_size(unsigned int *size)
         *size += block->size;
         block = block->next;
     }
-}
+}*/
 
 
-double cpumSecond() {
-   struct timeval tp;
-   gettimeofday(&tp,NULL);
-   return ((double)tp.tv_sec * 1000 + (double)tp.tv_usec * 1.e-3);
-}
-#define SEED 912
-void benchmark(int howMany, int requested)
+int flist_size(unsigned int *size, int numberofblocks)
 {
-    //printf("Hej\n");
-    struct head *arr[howMany];
-    srand(SEED);
-    int j = 0;
-    int flistSize = 0;
-    for(int reset = 0; reset < howMany; ++reset)
+    *size = 0;
+    numberofblocks=0;
+    struct head *block = flist;
+    while(block != NULL)
     {
-        arr[reset] = NULL;
+        *size += block->size;
+        numberofblocks++;
+        block = block->next;
     }
-    for(int i = 0; i < howMany; ++i)
-    {
-        int index = rand() % requested;
-        if((arr[index]) != NULL || j >= requested)
-        {
-            dfree(arr[index]);
-            arr[index] = NULL;
-            --j;
-        }  
-        else
-        {
-            arr[index] = dalloc(index * rand() % 100);
-            ++j;
-        }
-        flist_size(&flistSize);
-        //printf("%d\n", flistSize);
-    }
-
+    return numberofblocks;
 }
 
-int main(int argc, char *argv[])
-{
-    init();
-    // if(*argc < 3)
-    // {
-    //     printf("Too few arguments!\n (Format is: <Blocks requested> <Blocks at a time>");
-    //     exit(1);
-    // }
+int request(unsigned int min, unsigned int max) {     //från mymalloc övning
 
-    int requested = 10000;
-    int howMany = 1000000;
-    printf("%d  %d\n", requested, howMany);
-    unsigned long long iStart, iElaps;
-    for(int i = 0; i < 100000; i += 20)
-    {
-        iStart = cpumSecond();
-        benchmark(howMany, requested);
-        iElaps = cpumSecond() - iStart;
-        printf("Time: %llu\n", iElaps);
-    }
-    return 0;
+  /* k is log(MAX/MIN) */
+  double k = log(((double) max )/ min);
+
+  /* r is [0..k[ */
+  double r = ((double)( rand() % (int)(k*10000))) / 10000;
+  
+  /* size is [0 .. MAX[ */
+  int size = (int)((double)max / exp(r)) ;
+
+  return size;
 }
