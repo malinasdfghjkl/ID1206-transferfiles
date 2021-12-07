@@ -26,7 +26,11 @@ void init()
 
 void enq(green_t **list, green_t *thread)
 {
-    if (*list != NULL)
+    if (*list == NULL)
+    {
+        *list = thread;
+    }
+    else
     {
         green_t *susp = *list;
         while (susp->next != NULL)
@@ -92,7 +96,7 @@ int green_create(green_t *new, void *(*fun)(void *), void *arg)
     new->next = NULL;
     new->join = NULL;
     new->retval = NULL;
-    new->zombie = NULL;
+    new->zombie = FALSE;
 
     //add new to the ready queue
     sigprocmask(SIG_BLOCK, &block, NULL);
