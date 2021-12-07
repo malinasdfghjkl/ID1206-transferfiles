@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 600
 #include <stdlib.h>
+#include <stdio.h>
 #include <ucontext.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -76,7 +77,7 @@ void green_thread()
     running = next;
     setcontext(next->context);
 
-    sigprocmask(SIG_BLOCK, &block, NULL);
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
 }
 
 int green_create(green_t *new, void *(*fun)(void *), void *arg)
@@ -139,4 +140,54 @@ int green_join(green_t *thread, void **res)
     // free context
     free(thread->context);
     return 0;
+}
+
+//      # # # # # # # # # #
+//      # # # # # # # # # #
+//      #  3. Conditions  #
+//      # # # # # # # # # #
+//      # # # # # # # # # #
+
+//Initialize a green condition variable
+void green_cond_init(green_cond_t* cond)
+{
+    sigprocmask(SIG_BLOCK, &block, NULL);
+    cond->suspthreads=NULL;
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+
+}
+
+void green_cond_wait(green_cond_t *cond)
+{
+    sigprocmask(SIG_BLOCK, &block, NULL);
+
+    green_t *susp = running;
+    assert(susp != NULL);
+
+    enq(&cond->suspthreads, susp);
+
+    green_t *next = deq(&readyq);
+    assert(next != NULL);
+
+    running = next;
+
+    swapcontext(susp->context, next->context);
+
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+}
+
+
+void green_cond_signal(green_cond_t *cond)
+{
+    sigprocmask(SIG_BLOCK, &block, NULL);
+
+    if(cond->suspthreads == NULL)
+    {
+        return;
+    }
+
+    green_t *thread = deq(&cond->suspthreads);
+    enq(&readyq, thread);
+
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
 }
