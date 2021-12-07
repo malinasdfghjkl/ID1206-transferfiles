@@ -2,13 +2,13 @@
 
 typedef struct green_t 
 {
-    ucontext_t *context;
-    void *(*fun)(void*);
-    void *arg;
-    struct green_t *next;
-    struct green_t *join;
-    void *retval;
-    int zombie;
+    ucontext_t *context;            //place of origin
+    void *(*fun)(void*);            //function
+    void *arg;                      //argument
+    struct green_t *next;           //next thread
+    struct green_t *join;           //thread that wants to return from func exec
+    void *retval;                   //returnvalue
+    int zombie;                     //denotes that this thread has exec its function
 } green_t;
 
 
