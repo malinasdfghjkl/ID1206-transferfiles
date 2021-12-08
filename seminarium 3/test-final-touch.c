@@ -10,13 +10,15 @@ void *test(void *arg)
     int loop = 14;
     while (loop > 0)
     {
+        printf("1st lock");
         green_mutex_lock(&mutex);
         printf("thread %d: %d\n", id, loop);
         while (flag != id)
         {
-            green_mutex_unlock(&mutex);
+            //green_mutex_unlock(&mutex);
             green_cond_wait(&cond, &mutex);
-            green_mutex_lock(&mutex);
+             printf("2st lock");
+            //green_mutex_lock(&mutex);
         }
         flag = (id + 1) % 2;
         green_cond_signal(&cond);
