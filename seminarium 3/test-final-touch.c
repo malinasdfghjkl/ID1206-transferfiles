@@ -2,12 +2,12 @@
 #include <stdio.h>
 
 int flag = 0;
+ int loop = 14;
 green_cond_t cond;
 green_mutex_t mutex;
 void *test(void *arg)
 {
     int id = *(int *)arg;
-    int loop = 14;
     while (loop > 0)
     {
         printf("1st lock");
@@ -15,10 +15,10 @@ void *test(void *arg)
         printf("thread %d: %d\n", id, loop);
         while (flag != id)
         {
-            //green_mutex_unlock(&mutex);
+            //green_mutex_unlock(&mutex); must be removed bc mutex becomes unprotected
             green_cond_wait(&cond, &mutex);
-             printf("2st lock");
-            //green_mutex_lock(&mutex);
+             printf("2nd lock");
+           // green_mutex_lock(&mutex);
         }
         flag = (id + 1) % 2;
         green_cond_signal(&cond);
