@@ -177,28 +177,52 @@ void green_cond_init(green_cond_t *cond)
 
 void green_cond_wait(green_cond_t *cond, green_mutex_t *mutex)
 {
-//block timer interrupt
+    //block timer interrupt
     sigprocmask(SIG_BLOCK, &block, NULL);
 
-//suspend the running thread on condition
+    //suspend the running thread on condition
     green_t *susp = running;
     assert(susp != NULL);
-
-//release the lock if we have a mutex
-if(mutex!=NULL)
-{
-    sigprocmask(SIG_UNBLOCK, &block, NULL);
-}
     enq(&cond->suspthreads, susp);
-
+    //release the lock if we have a mutex
+    //move suspended thread to ready queue
+    if (mutex != NULL)
+    {
+        mutex->taken=FALSE;
+        green_t *suspend=deq(&mutex->suspthreads);
+        enq(&readyq, suspend);
+        mutex->suspthreads=NULL;
+    }
+    //shedule next thread
     green_t *next = deq(&readyq);
     assert(next != NULL);
 
     running = next;
-
     swapcontext(susp->context, next->context);
 
-    
+    if (mutex != NULL)
+    {
+        //try to take the lock
+        if (mutex->taken)
+        {
+            //bad luck suspended
+            green_t *susp = running;
+            enq(&cond->suspthreads, susp);
+
+            green_t *next = deq(&readyq);
+            running = next;
+            swapcontext(susp->context, next->context);
+        }
+        else
+        {
+            //take the lock
+
+            mutex->taken = TRUE;
+        }
+    }
+    //unblock
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+    return 0;
 }
 
 void green_cond_signal(green_cond_t *cond)
@@ -302,4 +326,3 @@ int green_mutex_unlock(green_mutex_t *mutex)
 //      #  6. Final touch #
 //      # # # # # # # # # #
 //      # # # # # # # # # #
-
