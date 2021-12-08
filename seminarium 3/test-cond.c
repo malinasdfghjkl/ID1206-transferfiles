@@ -18,7 +18,7 @@ void *test(void *arg)
         }
         else
         {
-            green_cond_wait(&cond);
+            //green_cond_wait(&cond, );                                         borta pga mutex err
         }
     }
 }

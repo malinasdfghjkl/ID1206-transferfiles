@@ -14,7 +14,6 @@
 
 #define PERIOD 100
 
-
 static ucontext_t main_cntx = {0};
 static green_t main_green = {&main_cntx, NULL, NULL, NULL, NULL, FALSE};
 static green_t *running = &main_green;
@@ -176,13 +175,20 @@ void green_cond_init(green_cond_t *cond)
     sigprocmask(SIG_UNBLOCK, &block, NULL);
 }
 
-void green_cond_wait(green_cond_t *cond)
+void green_cond_wait(green_cond_t *cond, green_mutex_t *mutex)
 {
+//block timer interrupt
     sigprocmask(SIG_BLOCK, &block, NULL);
 
+//suspend the running thread on condition
     green_t *susp = running;
     assert(susp != NULL);
 
+//release the lock if we have a mutex
+if(mutex!=NULL)
+{
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+}
     enq(&cond->suspthreads, susp);
 
     green_t *next = deq(&readyq);
@@ -192,7 +198,7 @@ void green_cond_wait(green_cond_t *cond)
 
     swapcontext(susp->context, next->context);
 
-    sigprocmask(SIG_UNBLOCK, &block, NULL);
+    
 }
 
 void green_cond_signal(green_cond_t *cond)
@@ -230,7 +236,7 @@ void timer_handler(int sig)
 
 //      # # # # # # # # # #
 //      # # # # # # # # # #
-//      # #   4. Mutex  # #
+//      # #   5. Mutex  # #
 //      # # # # # # # # # #
 //      # # # # # # # # # #
 
@@ -248,7 +254,7 @@ int green_mutex_lock(green_mutex_t *mutex)
 
     green_t *susp = running;
 
-    if(mutex->taken)
+    if (mutex->taken)
     {
         //suspend the current thread
         enq(&mutex->suspthreads, susp);
@@ -266,24 +272,34 @@ int green_mutex_lock(green_mutex_t *mutex)
     }
     //unblock
     sigprocmask(SIG_UNBLOCK, &block, NULL);
-    
+
     return 0;
 }
 
-
-int green_mutex_unlock ( green_mutex_t *mutex ) {
+int green_mutex_unlock(green_mutex_t *mutex)
+{
     sigprocmask(SIG_BLOCK, &block, NULL);
-// block timer interrupt
-if( mutex->suspthreads != NULL) {
-// move suspended thread to ready queue
-    green_t *suspthreads = deq(mutex->suspthreads);
-    enq(&readyq, suspthreads);
-} else{
-// release lock aka hard reset
-mutex->taken=FALSE;
-mutex->suspthreads=NULL;
+    // block timer interrupt
+    if (mutex->suspthreads != NULL)
+    {
+        // move suspended thread to ready queue
+        green_t *suspthreads = deq(mutex->suspthreads);
+        enq(&readyq, suspthreads);
+    }
+    else
+    {
+        // release lock aka hard reset
+        mutex->taken = FALSE;
+        mutex->suspthreads = NULL;
+    }
+    // unblock
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+    return 0;
 }
-// unblock
-sigprocmask(SIG_UNBLOCK, &block, NULL);
-return 0;
-}
+
+//      # # # # # # # # # #
+//      # # # # # # # # # #
+//      #  6. Final touch #
+//      # # # # # # # # # #
+//      # # # # # # # # # #
+
