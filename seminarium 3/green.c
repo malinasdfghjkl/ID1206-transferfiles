@@ -222,7 +222,6 @@ void green_cond_wait(green_cond_t *cond, green_mutex_t *mutex)
     }
     //unblock
     sigprocmask(SIG_UNBLOCK, &block, NULL);
-    return 0;
 }
 
 void green_cond_signal(green_cond_t *cond)
