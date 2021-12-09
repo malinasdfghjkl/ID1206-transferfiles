@@ -8,6 +8,9 @@ int loop = 15;
 green_cond_t cond;
 green_mutex_t mutex;
 
+pthread_cond_t pcond;
+pthread_mutex_t pmutex;
+
 unsigned long long cpumSecond() {
    struct timeval tp;
    gettimeofday(&tp,NULL);
@@ -41,15 +44,15 @@ void *ptest(void *arg)
     int id = *(int *)arg;
     while (loop > 0)
     {
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&pmutex);
         while (flag != id)
         {
 
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_wait(&pcond, &pmutex);
         }
         flag = (id + 1) % 2;
-        pthread_cond_signal(&cond);
-        pthread_mutex_unlock(&mutex);
+        pthread_cond_signal(&pcond);
+        pthread_mutex_unlock(&pmutex);
         loop--;
     }
 }
@@ -81,7 +84,7 @@ int main()
     pthread_join(&ptt0, NULL);
     pthread_join(&ptt1, NULL);
     unsigned long long ptexectime= cpumSecond()-ptstart;
-    printf("pttime: \n");
+    printf("ptime: \n");
     printf("%llu\n", ptexectime);
     return 0;
 }
