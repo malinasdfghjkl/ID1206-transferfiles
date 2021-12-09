@@ -81,8 +81,8 @@ int main()
     unsigned long long ptstart= cpumSecond();
     pthread_create(&ptt0, NULL, ptest, &pt0);
     pthread_create(&ptt1, NULL, ptest, &pt1);
-    pthread_join(&ptt0, NULL);
-    pthread_join(&ptt1, NULL);
+    pthread_join(ptt0, NULL);
+    pthread_join(ptt1, NULL);
     unsigned long long ptexectime= cpumSecond()-ptstart;
     printf("ptime: \n");
     printf("%llu\n", ptexectime);
