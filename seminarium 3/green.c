@@ -306,7 +306,7 @@ int green_mutex_unlock(green_mutex_t *mutex)
     if (mutex->suspthreads != NULL)
     {
         // move suspended thread to ready queue
-        green_t *suspthreads = deq(mutex->suspthreads);
+        green_t *suspthreads = deq(&mutex->suspthreads);
         enq(&readyq, suspthreads);
     }
     else

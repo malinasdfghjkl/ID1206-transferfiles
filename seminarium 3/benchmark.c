@@ -84,6 +84,12 @@ void atomicptest(void *arg){
     }
 }
 
+void pthreads_init()
+{
+    pthread_mutex_init(&pmutex, NULL);
+    pthread_cond_init(&pcond, NULL);
+}
+
 int main()
 {
 //vår implementation
@@ -108,6 +114,7 @@ for(int i=1;i<1000; i++){
     pthread_t ptt0, ptt1;
     int pt0 = 0;
     int pt1 = 1;
+    pthreads_init();
     unsigned long long ptstart= cpumSecond();
     pthread_create(&ptt0, NULL, ptest, &pt0);
     pthread_create(&ptt1, NULL, ptest, &pt1);
