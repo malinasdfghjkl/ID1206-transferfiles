@@ -36,7 +36,7 @@ void *test(void *arg)
     }
 }
 
-void *pttest(void *arg)
+void *ptest(void *arg)
 {
     int id = *(int *)arg;
     while (loop > 0)
@@ -74,8 +74,8 @@ int main()
     int pt0 = 0;
     int pt1 = 1;
     unsigned long long ptstart= cpumSecond();
-    pthread_create(&ptt0, NULL, test, &pt0);
-    pthread_create(&ptt1, NULL, test, &pt1);
+    pthread_create(&ptt0, NULL, ptest, &pt0);
+    pthread_create(&ptt1, NULL, ptest, &pt1);
     pthread_join(&ptt0, NULL);
     pthread_join(&ptt1, NULL);
     unsigned long long ptexectime= cpumSecond()-ptstart;
