@@ -69,6 +69,8 @@ int main()
     printf("time: \n");
     printf("%llu\n", exectime);
 
+    loop=15;
+
 //ptthread
     pthread_t ptt0, ptt1;
     int pt0 = 0;
